@@ -175,29 +175,34 @@
             element.className = `card-face face-front suit-${suit}`;
         };
 
-        // 2. Initialize Engine with Config
-        const engine = new CardVisualEngine('game-stage', {
+        // 2. DOM Retrieval (Done purely in consumer code)
+        const stageEl = document.getElementById('game-stage');
+        const deckEl = document.getElementById('zone-deck');
+        const handEl = document.getElementById('zone-hand');
+        const discardEl = document.getElementById('zone-discard');
+
+        // 3. Initialize Engine with Stage Element
+        const engine = new CardVisualEngine(stageEl, {
             cardWidth: 80,
             cardHeight: 112,
             renderCard: renderPokerCard
         });
 
-        // 3. Create Logical Zones using the Engine
+        // 4. Create Logical Zones using Elements
         const zones = {
-            hand: engine.createZone('zone-hand', 'row'),
-            discard: engine.createZone('zone-discard', 'pile'),
-            // Deck is just a reference point for this demo
-            deckEl: document.getElementById('zone-deck')
+            hand: engine.createZone(handEl, 'row'),
+            discard: engine.createZone(discardEl, 'pile'),
+            // Deck is just a reference point, stored here for convenience
+            deckEl: deckEl
         };
 
-        // 4. Mock Game Logic (The controller)
+        // 5. Mock Game Logic (The controller)
         const mockGame = {
             drawCard: function() {
                 const suits = ['H', 'D', 'S', 'C'];
                 const vals = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
                 const type = suits[Math.floor(Math.random()*4)] + vals[Math.floor(Math.random()*13)];
 
-                // REFACTORED: Pass the Anchor Element directly. No coordinate math needed here.
                 const token = engine.pool.spawn(type, zones.deckEl);
 
                 zones.hand.add(token);
@@ -219,8 +224,6 @@
                 // 2. Visual move: Fire-and-forget
                 tokens.forEach((token, i) => {
                     setTimeout(() => {
-                        
-                        // REFACTORED: Use the new Anchor method
                         token.moveToAnchor(zones.deckEl, 0);
                         token.setFlipped(true);
         

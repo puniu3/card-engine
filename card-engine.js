@@ -5,14 +5,12 @@
 
 // 1. Token Class: DOM Wrapper & Animation Actor
 class Token {
-    // Refactored: Accept stage and config to handle anchor-based positioning internally
     constructor(element, renderCallback, stage, config) {
         this.el = element;
         this.type = null;
         this.isFlipped = false;
         this.renderCallback = renderCallback;
         
-        // Store context for coordinate calculations
         this.stage = stage;
         this.config = config;
 
@@ -37,26 +35,14 @@ class Token {
         this.applyTransform();
     }
 
-    /**
-     * Moves the token to a specific DOM element (Anchor).
-     * Calculates the center position automatically based on card dimensions.
-     * @param {HTMLElement} targetEl - The anchor element (e.g., Deck slot)
-     * @param {number} rotation - Optional rotation angle
-     */
     moveToAnchor(targetEl, rotation = 0) {
         const center = StageHelper.getRelativePos(targetEl, this.stage);
-        
-        // Adjust for card dimensions to center it perfectly
         const x = center.x - (this.config.cardWidth / 2);
         const y = center.y - (this.config.cardHeight / 2);
         
         this.moveTo(x, y, rotation);
     }
 
-    /**
-     * Instantly jumps to a specific DOM element without animation.
-     * @param {HTMLElement} targetEl 
-     */
     jumpToAnchor(targetEl) {
         const center = StageHelper.getRelativePos(targetEl, this.stage);
         const x = center.x - (this.config.cardWidth / 2);
@@ -87,20 +73,13 @@ class Token {
 
 // 2. Token Pool
 class TokenPool {
-    // Refactored: Require config to pass dimensions to Tokens
     constructor(stageElement, renderCallback, config) {
         this.stage = stageElement;
         this.pool = [];
         this.renderCallback = renderCallback;
-        this.config = config; 
+        this.config = config;
     }
 
-    /**
-     * Refactored: Spawn now accepts a DOM element (anchor) instead of raw coordinates.
-     * @param {string} cardType 
-     * @param {HTMLElement} anchorEl - Where the card should appear
-     * @param {boolean} initialFlipped 
-     */
     spawn(cardType, anchorEl, initialFlipped = false) {
         let token;
         if (this.pool.length > 0) {
@@ -111,11 +90,8 @@ class TokenPool {
         }
         
         token.setType(cardType);
-        
-        // Set initial state
         token.setFlipped(initialFlipped);
         
-        // Use the new anchor-based jump
         if (anchorEl) {
             token.jumpToAnchor(anchorEl);
         }
@@ -136,7 +112,6 @@ class TokenPool {
             <div class="card-face face-back"></div>
         `;
         this.stage.appendChild(el);
-        // Pass stage and config to the Token instance
         return new Token(el, this.renderCallback, this.stage, this.config);
     }
 }
@@ -214,8 +189,15 @@ class PileStrategy {
 
 // 4. Zone Wrapper
 class Zone {
-    constructor(id, strategy, pool, stageEl) {
-        this.el = document.getElementById(id);
+    /**
+     * Refactored: Accepts explicit HTMLElement instead of ID string.
+     * @param {HTMLElement} element 
+     * @param {object} strategy 
+     * @param {TokenPool} pool 
+     * @param {HTMLElement} stageEl 
+     */
+    constructor(element, strategy, pool, stageEl) {
+        this.el = element; // Direct assignment, no DOM lookup here
         this.strategy = strategy;
         this.items = []; 
         this.pool = pool;
@@ -253,19 +235,30 @@ class Zone {
 
 // 5. Card Visual Engine
 class CardVisualEngine {
-    constructor(stageId, config) {
-        this.stageEl = document.getElementById(stageId);
+    /**
+     * Refactored:
+     * @param {HTMLElement} stageElement - The stage element itself
+     * @param {object} config 
+     */
+    constructor(stageElement, config) {
+        this.stageEl = stageElement; // Direct assignment
         this.config = config;
         
-        // Pass config to pool so it can configure Tokens correctly
         this.pool = new TokenPool(this.stageEl, this.config.renderCard, this.config);
-        this.zones = {};
-
+        this.zones = []; // Changed from object to array as keys (IDs) are less relevant now, but keeping track is good
+        
+        // Auto-resize handling
         const ro = new ResizeObserver(() => this.renderAll());
         ro.observe(this.stageEl);
     }
 
-    createZone(zoneId, strategyType, options = {}) {
+    /**
+     * Refactored:
+     * @param {HTMLElement} zoneElement - The element to become a zone
+     * @param {string} strategyType 
+     * @param {object} options 
+     */
+    createZone(zoneElement, strategyType, options = {}) {
         let strategy;
         if (strategyType === 'row') {
             strategy = new CenterRowStrategy(this.config);
@@ -273,12 +266,12 @@ class CardVisualEngine {
             strategy = new PileStrategy(this.config, options.angle || 15);
         }
 
-        const zone = new Zone(zoneId, strategy, this.pool, this.stageEl);
-        this.zones[zoneId] = zone;
+        const zone = new Zone(zoneElement, strategy, this.pool, this.stageEl);
+        this.zones.push(zone);
         return zone;
     }
 
     renderAll() {
-        Object.values(this.zones).forEach(z => z.render());
+        this.zones.forEach(z => z.render());
     }
 }
