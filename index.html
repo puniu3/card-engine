@@ -199,15 +199,9 @@
 
                 const deckPos = StageHelper.getRelativePos(zones.deckEl, engine.stageEl);
                 
-                // Fix 1: Spawn as FLIPPED (Face Down) at the deck position
-                const token = engine.pool.spawn(type, deckPos.x - 40, deckPos.y - 56, true);
+                const token = engine.pool.spawn(type, deckPos.x - 40, deckPos.y - 56);
 
-                // Fix 2: Add to hand (calculates new X,Y)
                 zones.hand.add(token);
-
-                // Fix 3: Immediately set target state to Face Up.
-                // The browser transitions from [Deck, Back] -> [Hand, Front]
-                token.setFlipped(false);
             },
 
             discardRandom: function() {
@@ -245,7 +239,7 @@
 
         // Initial Draw
         setTimeout(() => {
-            for(let i=0; i<5; i++) setTimeout(() => mockGame.drawCard(), i*200);
+            for(let i=0; i<5; i++) setTimeout(() => mockGame.drawCard(), i*60);
         }, 500);
 
     </script>
