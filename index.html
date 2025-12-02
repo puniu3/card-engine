@@ -8,8 +8,8 @@
     <style>
         /* --- DEMO SPECIFIC STYLES --- */
         :root {
-            --card-w: 80px;
-            --card-h: 112px;
+            /* ライブラリのデフォルト(--card-w: 80px)をそのまま採用するため
+               ここでは上書きしません。必要ならここで再定義します。 */
             --bg-color: #202020;
         }
 
@@ -34,12 +34,7 @@
             box-shadow: 0 0 50px rgba(0,0,0,0.5);
         }
 
-        #game-stage {
-            width: 100%;
-            height: 100%;
-        }
-
-        /* Layout */
+        /* Layout Positions */
         .layout-row {
             display: flex;
             justify-content: center;
@@ -52,7 +47,7 @@
             width: 100%;
         }
 
-        /* Zones */
+        /* Zones & Placeholders */
         .zone-placeholder {
             border: 2px dashed rgba(255,255,255,0.2);
             border-radius: 10px;
@@ -62,6 +57,8 @@
             justify-content: center;
             align-items: center;
         }
+        
+        /* Specific sizes for zones based on expected card content */
         #zone-deck, #zone-discard { width: 100px; height: 140px; }
         #zone-hand { width: 600px; height: 160px; }
 
@@ -72,7 +69,7 @@
             color: #888;
         }
 
-        /* Deck Visual */
+        /* Deck Visual (Static element representing the stack) */
         .deck-visual {
             width: var(--card-w);
             height: var(--card-h);
@@ -82,27 +79,15 @@
             border: 1px solid #666;
         }
 
-        /* Card Styles (injected into the reusable tokens) */
-        .card-token {
-            width: var(--card-w);
-            height: var(--card-h);
-        }
+        /* Game Specific: Poker Suit Colors */
+        /* Note: Card shape/size styles are now imported from card-engine.css */
+        
         .card-face {
-            border-radius: 6px;
-            border: 1px solid rgba(0,0,0,0.2);
-            display: flex;
-            justify-content: center;
-            align-items: center;
+            /* デモ固有: フォントサイズ調整やテキスト色 */
             font-size: 18px;
-            font-weight: bold;
-            background: white;
-            color: #333;
-        }
-        .face-back {
-            background: linear-gradient(135deg, #444 0%, #222 100%);
+            color: #333; 
         }
         
-        /* Suit Colors */
         .suit-H, .suit-D { color: #e63946; }
         .suit-C, .suit-S { color: #1d3557; }
 
@@ -159,33 +144,31 @@
     </div>
 
     <script type="module" src="card-engine.js"></script>
-
-
     <script type="module">
         import CardVisualEngine from './card-engine.js';
         
-        // 1. Setup Logic for Rendering Content
         const renderPokerCard = (element, type) => {
             const suit = type.charAt(0);
             const val = type.substring(1);
-            
             const icons = { H: '♥', D: '♦', S: '♠', C: '♣' };
             const icon = icons[suit] || '';
 
             element.innerHTML = `${val}<br><span style="font-size:24px">${icon}</span>`;
+            // Note: face-front class is already styled by library
             element.className = `card-face face-front suit-${suit}`;
         };
 
         const stageEl = document.getElementById('game-stage');
-        const deckEl = document.getElementById('zone-deck');
-        const handEl = document.getElementById('zone-hand');
-        const discardEl = document.getElementById('zone-discard');
-
         const engine = new CardVisualEngine(stageEl, {
             cardWidth: 80,
             cardHeight: 112,
             renderCard: renderPokerCard
         });
+
+        // ... (Rest of the JS logic remains same) ...
+        const deckEl = document.getElementById('zone-deck');
+        const handEl = document.getElementById('zone-hand');
+        const discardEl = document.getElementById('zone-discard');
 
         const zones = {
             hand: engine.createZone(handEl, 'row'),
@@ -193,52 +176,36 @@
             deckEl: deckEl
         };
 
-        // 5. Mock Game Logic
         window.mockGame = {
             drawCard: function() {
                 const suits = ['H', 'D', 'S', 'C'];
                 const vals = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
                 const type = suits[Math.floor(Math.random()*4)] + vals[Math.floor(Math.random()*13)];
-
-                // REFACTOR NOTE: Accessing via the Engine facade, not the internal pool
                 const token = engine.spawn(type, zones.deckEl);
-
                 zones.hand.add(token);
             },
-
             discardRandom: function() {
-                // 'items' is now a getter
                 if (zones.hand.items.length === 0) return;
                 const idx = Math.floor(Math.random() * zones.hand.items.length);
                 const [token] = zones.hand.removeIndices([idx]);
                 zones.discard.add(token);
             },
-
-           reshuffle: function() {
+            reshuffle: function() {
                 if (zones.discard.items.length === 0) return;
-                
                 const tokens = zones.discard.clear();
-        
                 tokens.forEach((token, i) => {
                     setTimeout(() => {
                         token.moveToAnchor(zones.deckEl, 0);
                         token.setFlipped(true);
-        
-                        setTimeout(() => {
-                            // REFACTOR NOTE: Using Engine facade for disposal
-                            engine.despawn(token);
-                        }, 500); 
-        
+                        setTimeout(() => { engine.despawn(token); }, 500); 
                     }, i * 20);
                 });
             }
         };
 
-        // Initial Draw
         setTimeout(() => {
             for(let i=0; i<5; i++) setTimeout(() => mockGame.drawCard(), i*60);
         }, 400);
-
     </script>
 </body>
 </html>
