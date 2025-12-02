@@ -241,14 +241,29 @@ class CardVisualEngine {
      * @param {object} config 
      */
     constructor(stageElement, config) {
-        this.stageEl = stageElement; // Direct assignment
+        this.stageEl = stageElement;
         this.config = config;
         
         this.pool = new TokenPool(this.stageEl, this.config.renderCard, this.config);
-        this.zones = []; // Changed from object to array as keys (IDs) are less relevant now, but keeping track is good
+        this.zones = []; 
         
-        // Auto-resize handling
-        const ro = new ResizeObserver(() => this.renderAll());
+        // Auto-resize handling with transition suppression
+        const ro = new ResizeObserver(() => {
+            // 1. Temporarily disable CSS transitions on the container
+            this.stageEl.classList.add('no-transition');
+
+            // 2. Recalculate positions (this updates transform styles)
+            this.renderAll();
+
+            // 3. Force Reflow/Layout Thrashing intentionally
+            // This ensures the browser applies the new transform *while* transition is disabled.
+            // Without this, the browser might batch the DOM updates until after the class is removed.
+            void this.stageEl.offsetHeight;
+
+            // 4. Re-enable transitions
+            this.stageEl.classList.remove('no-transition');
+        });
+        
         ro.observe(this.stageEl);
     }
 

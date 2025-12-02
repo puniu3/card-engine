@@ -29,6 +29,10 @@
     transform-style: preserve-3d; 
     cursor: pointer;
 }
+/* Utility to kill animations during resize */
+.no-transition .card-token {
+    transition: none !important;
+}
 
 .card-face {
     position: absolute;
