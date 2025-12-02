@@ -4,87 +4,95 @@
  * ES Module version: Only exposes CardVisualEngine.
  */
 
-/* --- 内部クラス・ヘルパー (隠蔽) --- */
+/* --- Internal Classes & Helpers (Encapsulated) --- */
 
 // 1. Token Class: DOM Wrapper & Animation Actor
 class Token {
     constructor(element, renderCallback, stage, config) {
-        this.el = element;
-        this.type = null;
-        this.isFlipped = false;
-        this.renderCallback = renderCallback;
-        this.stage = stage;
-        this.config = config;
-        this.x = 0;
-        this.y = 0;
-        this.rotation = 0;
+        // Internal state is now prefixed with "_"
+        this._el = element;
+        this._renderCallback = renderCallback;
+        this._stage = stage;
+        this._config = config;
+
+        // Cartesian coordinates and rotation state
+        this._x = 0;
+        this._y = 0;
+        this._rotation = 0;
+        
+        // State flags
+        this._type = null;
+        this._isFlipped = false;
     }
 
+    // Public accessor if strictly needed, otherwise keep private
+    get element() { return this._el; }
+
     setType(cardType) {
-        this.type = cardType;
-        const front = this.el.querySelector('.face-front');
-        if (this.renderCallback) {
-            this.renderCallback(front, cardType);
+        this._type = cardType;
+        const front = this._el.querySelector('.face-front');
+        if (this._renderCallback) {
+            this._renderCallback(front, cardType);
         } else {
             front.textContent = cardType;
         }
     }
 
     setFlipped(flipped) {
-        this.isFlipped = flipped;
-        this.applyTransform();
+        this._isFlipped = flipped;
+        this._applyTransform();
     }
 
     moveToAnchor(targetEl, rotation = 0) {
-        const center = StageHelper.getRelativePos(targetEl, this.stage);
-        const x = center.x - (this.config.cardWidth / 2);
-        const y = center.y - (this.config.cardHeight / 2);
+        const center = StageHelper.getRelativePos(targetEl, this._stage);
+        const x = center.x - (this._config.cardWidth / 2);
+        const y = center.y - (this._config.cardHeight / 2);
         this.moveTo(x, y, rotation);
     }
 
     jumpToAnchor(targetEl) {
-        const center = StageHelper.getRelativePos(targetEl, this.stage);
-        const x = center.x - (this.config.cardWidth / 2);
-        const y = center.y - (this.config.cardHeight / 2);
+        const center = StageHelper.getRelativePos(targetEl, this._stage);
+        const x = center.x - (this._config.cardWidth / 2);
+        const y = center.y - (this._config.cardHeight / 2);
         this.jumpTo(x, y);
     }
 
     moveTo(x, y, rotation = 0) {
-        this.x = x;
-        this.y = y;
-        this.rotation = rotation;
-        this.applyTransform();
+        this._x = x;
+        this._y = y;
+        this._rotation = rotation;
+        this._applyTransform();
     }
     
     jumpTo(x, y) {
-        this.el.style.transition = 'none';
+        this._el.style.transition = 'none';
         this.moveTo(x, y, 0);
-        this.el.offsetHeight; // Force Reflow
-        this.el.style.transition = '';
+        this._el.offsetHeight; // Force Reflow
+        this._el.style.transition = '';
     }
 
-    applyTransform() {
-        const flipRot = this.isFlipped ? 180 : 0;
-        this.el.style.transform = `translate3d(${this.x}px, ${this.y}px, 0) rotate(${this.rotation}deg) rotateY(${flipRot}deg)`;
+    _applyTransform() {
+        const flipRot = this._isFlipped ? 180 : 0;
+        this._el.style.transform = `translate3d(${this._x}px, ${this._y}px, 0) rotate(${this._rotation}deg) rotateY(${flipRot}deg)`;
     }
 }
 
-// 2. Token Pool
+// 2. Token Pool (Internal Memory Management)
 class TokenPool {
     constructor(stageElement, renderCallback, config) {
-        this.stage = stageElement;
-        this.pool = [];
-        this.renderCallback = renderCallback;
-        this.config = config;
+        this._stage = stageElement;
+        this._pool = [];
+        this._renderCallback = renderCallback;
+        this._config = config;
     }
 
     spawn(cardType, anchorEl, initialFlipped = false) {
         let token;
-        if (this.pool.length > 0) {
-            token = this.pool.pop();
-            token.el.style.display = 'block';
+        if (this._pool.length > 0) {
+            token = this._pool.pop();
+            token.element.style.display = 'block';
         } else {
-            token = this.createTokenElement();
+            token = this._createTokenElement();
         }
         
         token.setType(cardType);
@@ -98,19 +106,19 @@ class TokenPool {
     }
 
     despawn(token) {
-        token.el.style.display = 'none';
-        this.pool.push(token);
+        token.element.style.display = 'none';
+        this._pool.push(token);
     }
 
-    createTokenElement() {
+    _createTokenElement() {
         const el = document.createElement('div');
         el.className = 'card-token';
         el.innerHTML = `
             <div class="card-face face-front"></div>
             <div class="card-face face-back"></div>
         `;
-        this.stage.appendChild(el);
-        return new Token(el, this.renderCallback, this.stage, this.config);
+        this._stage.appendChild(el);
+        return new Token(el, this._renderCallback, this._stage, this._config);
     }
 }
 
@@ -130,7 +138,7 @@ const StageHelper = {
 
 class CenterRowStrategy {
     constructor(config) {
-        this.config = config;
+        this._config = config;
     }
 
     update(items, zoneEl, stageEl) {
@@ -138,8 +146,8 @@ class CenterRowStrategy {
         const count = items.length;
         if (count === 0) return;
 
-        const cw = this.config.cardWidth;
-        const ch = this.config.cardHeight;
+        const cw = this._config.cardWidth;
+        const ch = this._config.cardHeight;
         const gap = 10;
         const zoneWidth = zoneEl.offsetWidth;
 
@@ -157,28 +165,29 @@ class CenterRowStrategy {
         items.forEach((token, i) => {
             const x = startX + (i * step);
             token.moveTo(x, startY, 0);
-            token.el.style.zIndex = i;
+            token.element.style.zIndex = i;
         });
     }
 }
 
 class PileStrategy {
     constructor(config, maxAngle = 15) {
-        this.config = config;
-        this.maxAngle = maxAngle;
+        this._config = config;
+        this._maxAngle = maxAngle;
     }
 
     update(items, zoneEl, stageEl) {
         const center = StageHelper.getRelativePos(zoneEl, stageEl);
-        const cw = this.config.cardWidth;
-        const ch = this.config.cardHeight;
+        const cw = this._config.cardWidth;
+        const ch = this._config.cardHeight;
 
         items.forEach((token, i) => {
             const x = center.x - (cw / 2); 
             const y = center.y - (ch / 2);
-            const angle = Math.sin(i * 12345) * this.maxAngle;
+            // Pseudo-random deterministic rotation
+            const angle = Math.sin(i * 12345) * this._maxAngle;
             token.moveTo(x, y, angle);
-            token.el.style.zIndex = i;
+            token.element.style.zIndex = i;
         });
     }
 }
@@ -186,24 +195,30 @@ class PileStrategy {
 // 4. Zone Wrapper
 class Zone {
     constructor(element, strategy, pool, stageEl) {
-        this.el = element;
-        this.strategy = strategy;
-        this.items = []; 
-        this.pool = pool;
-        this.stageEl = stageEl;
+        this._el = element;
+        this._strategy = strategy;
+        this._items = []; 
+        this._pool = pool; // Reference to internal pool if needed
+        this._stageEl = stageEl;
+    }
+
+    // Public getter to safely access items (read-only)
+    get items() {
+        return this._items;
     }
 
     add(token) {
-        this.items.push(token);
+        this._items.push(token);
         this.render();
     }
 
     removeIndices(indices) {
+        // Sort descending to prevent index shift issues during splice
         indices.sort((a, b) => b - a);
         const removed = [];
         indices.forEach(idx => {
-            if (this.items[idx]) {
-                removed.push(this.items.splice(idx, 1)[0]);
+            if (this._items[idx]) {
+                removed.push(this._items.splice(idx, 1)[0]);
             }
         });
         this.render();
@@ -211,54 +226,67 @@ class Zone {
     }
 
     clear() {
-        const all = [...this.items];
-        this.items = [];
+        const all = [...this._items];
+        this._items = [];
         this.render();
         return all;
     }
 
     render() {
-        this.strategy.update(this.items, this.el, this.stageEl);
+        this._strategy.update(this._items, this._el, this._stageEl);
     }
 }
 
-/* --- 公開 API (Export) --- */
+/* --- Public API (Export) --- */
 
 // 5. Card Visual Engine
 export default class CardVisualEngine {
     constructor(stageElement, config) {
-        this.stageEl = stageElement;
-        this.config = config;
+        this._stageEl = stageElement;
+        this._config = config;
+        this._zones = []; 
         
-        // Internal instances are created here, hidden from the user
-        this.pool = new TokenPool(this.stageEl, this.config.renderCard, this.config);
-        this.zones = []; 
+        // Encapsulate the pool entirely within the engine
+        this._pool = new TokenPool(this._stageEl, this._config.renderCard, this._config);
         
         const ro = new ResizeObserver(() => {
-            this.stageEl.classList.add('no-transition');
+            this._stageEl.classList.add('no-transition');
             this.renderAll();
-            void this.stageEl.offsetHeight;
-            this.stageEl.classList.remove('no-transition');
+            void this._stageEl.offsetHeight;
+            this._stageEl.classList.remove('no-transition');
         });
         
-        ro.observe(this.stageEl);
+        ro.observe(this._stageEl);
+    }
+
+    /**
+     * Facade method to spawn a card without exposing the pool logic.
+     */
+    spawn(cardType, anchorEl, initialFlipped = false) {
+        return this._pool.spawn(cardType, anchorEl, initialFlipped);
+    }
+
+    /**
+     * Facade method to remove/recycle a card.
+     */
+    despawn(token) {
+        this._pool.despawn(token);
     }
 
     createZone(zoneElement, strategyType, options = {}) {
         let strategy;
         if (strategyType === 'row') {
-            strategy = new CenterRowStrategy(this.config);
+            strategy = new CenterRowStrategy(this._config);
         } else if (strategyType === 'pile') {
-            strategy = new PileStrategy(this.config, options.angle || 15);
+            strategy = new PileStrategy(this._config, options.angle || 15);
         }
 
-        // Returns a Zone instance, but the Class itself is not exported
-        const zone = new Zone(zoneElement, strategy, this.pool, this.stageEl);
-        this.zones.push(zone);
+        const zone = new Zone(zoneElement, strategy, this._pool, this._stageEl);
+        this._zones.push(zone);
         return zone;
     }
 
     renderAll() {
-        this.zones.forEach(z => z.render());
+        this._zones.forEach(z => z.render());
     }
 }

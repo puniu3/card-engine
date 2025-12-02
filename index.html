@@ -162,56 +162,52 @@
 
 
     <script type="module">
-        // default export なので好きな名前でインポート可能
         import CardVisualEngine from './card-engine.js';
-        // 1. Setup Logic for Rendering Content (Poker specific)
+        
+        // 1. Setup Logic for Rendering Content
         const renderPokerCard = (element, type) => {
-            const suit = type.charAt(0); // 'H', 'D', 'C', 'S'
+            const suit = type.charAt(0);
             const val = type.substring(1);
             
             const icons = { H: '♥', D: '♦', S: '♠', C: '♣' };
             const icon = icons[suit] || '';
 
             element.innerHTML = `${val}<br><span style="font-size:24px">${icon}</span>`;
-            
-            // Add class for coloring
             element.className = `card-face face-front suit-${suit}`;
         };
 
-        // 2. DOM Retrieval (Done purely in consumer code)
         const stageEl = document.getElementById('game-stage');
         const deckEl = document.getElementById('zone-deck');
         const handEl = document.getElementById('zone-hand');
         const discardEl = document.getElementById('zone-discard');
 
-        // 3. Initialize Engine with Stage Element
         const engine = new CardVisualEngine(stageEl, {
             cardWidth: 80,
             cardHeight: 112,
             renderCard: renderPokerCard
         });
 
-        // 4. Create Logical Zones using Elements
         const zones = {
             hand: engine.createZone(handEl, 'row'),
             discard: engine.createZone(discardEl, 'pile'),
-            // Deck is just a reference point, stored here for convenience
             deckEl: deckEl
         };
 
-        // 5. Mock Game Logic (The controller)
+        // 5. Mock Game Logic
         window.mockGame = {
             drawCard: function() {
                 const suits = ['H', 'D', 'S', 'C'];
                 const vals = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
                 const type = suits[Math.floor(Math.random()*4)] + vals[Math.floor(Math.random()*13)];
 
-                const token = engine.pool.spawn(type, zones.deckEl);
+                // REFACTOR NOTE: Accessing via the Engine facade, not the internal pool
+                const token = engine.spawn(type, zones.deckEl);
 
                 zones.hand.add(token);
             },
 
             discardRandom: function() {
+                // 'items' is now a getter
                 if (zones.hand.items.length === 0) return;
                 const idx = Math.floor(Math.random() * zones.hand.items.length);
                 const [token] = zones.hand.removeIndices([idx]);
@@ -221,17 +217,16 @@
            reshuffle: function() {
                 if (zones.discard.items.length === 0) return;
                 
-                // 1. Logical move
                 const tokens = zones.discard.clear();
         
-                // 2. Visual move: Fire-and-forget
                 tokens.forEach((token, i) => {
                     setTimeout(() => {
                         token.moveToAnchor(zones.deckEl, 0);
                         token.setFlipped(true);
         
                         setTimeout(() => {
-                            engine.pool.despawn(token);
+                            // REFACTOR NOTE: Using Engine facade for disposal
+                            engine.despawn(token);
                         }, 500); 
         
                     }, i * 20);
