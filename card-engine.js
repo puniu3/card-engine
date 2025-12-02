@@ -1,0 +1,249 @@
+/**
+ * card-engine.js
+ * Core library for card positioning and animation.
+ */
+
+// 1. Token Class: DOM Wrapper & Animation Actor
+class Token {
+    constructor(element, renderCallback) {
+        this.el = element;
+        this.type = null;
+        this.isFlipped = false;
+        this.renderCallback = renderCallback; // Function to render content
+        
+        this.x = 0;
+        this.y = 0;
+        this.rotation = 0;
+    }
+
+    setType(cardType) {
+        this.type = cardType;
+        const front = this.el.querySelector('.face-front');
+        
+        // Delegate rendering logic to the callback provided in config
+        if (this.renderCallback) {
+            this.renderCallback(front, cardType);
+        } else {
+            front.textContent = cardType;
+        }
+    }
+
+    setFlipped(flipped) {
+        this.isFlipped = flipped;
+        this.applyTransform();
+    }
+
+    moveTo(x, y, rotation = 0) {
+        this.x = x;
+        this.y = y;
+        this.rotation = rotation;
+        this.applyTransform();
+    }
+    
+    jumpTo(x, y) {
+        this.el.style.transition = 'none';
+        this.moveTo(x, y, 0);
+        this.el.offsetHeight; // Force Reflow
+        this.el.style.transition = '';
+    }
+
+    applyTransform() {
+        const flipRot = this.isFlipped ? 180 : 0;
+        this.el.style.transform = `translate3d(${this.x}px, ${this.y}px, 0) rotate(${this.rotation}deg) rotateY(${flipRot}deg)`;
+    }
+}
+
+// 2. Token Pool
+class TokenPool {
+    constructor(stageElement, renderCallback) {
+        this.stage = stageElement;
+        this.pool = [];
+        this.renderCallback = renderCallback;
+    }
+
+    spawn(cardType, x, y, initialFlipped = false) {
+        let token;
+        if (this.pool.length > 0) {
+            token = this.pool.pop();
+            token.el.style.display = 'block';
+        } else {
+            token = this.createTokenElement();
+        }
+        
+        token.setType(cardType);
+        
+        // Fix: Set the initial flip state BEFORE forcing reflow in jumpTo
+        token.setFlipped(initialFlipped);
+        
+        // This forces reflow, locking in the initial position and rotation
+        token.jumpTo(x, y);
+        
+        return token;
+    }
+
+    despawn(token) {
+        token.el.style.display = 'none';
+        this.pool.push(token);
+    }
+
+    createTokenElement() {
+        const el = document.createElement('div');
+        el.className = 'card-token';
+        el.innerHTML = `
+            <div class="card-face face-front"></div>
+            <div class="card-face face-back"></div>
+        `;
+        this.stage.appendChild(el);
+        return new Token(el, this.renderCallback);
+    }
+}
+
+// 3. Layout Strategies
+const StageHelper = {
+    getRelativePos(targetEl, stageEl) {
+        const stageRect = stageEl.getBoundingClientRect();
+        const targetRect = targetEl.getBoundingClientRect();
+        const scale = stageRect.width / stageEl.offsetWidth; 
+
+        return {
+            x: (targetRect.left - stageRect.left + targetRect.width/2) / scale,
+            y: (targetRect.top - stageRect.top + targetRect.height/2) / scale
+        };
+    }
+};
+
+class CenterRowStrategy {
+    constructor(config) {
+        this.config = config; // { cardWidth, cardHeight, ... }
+    }
+
+    update(items, zoneEl, stageEl) {
+        const center = StageHelper.getRelativePos(zoneEl, stageEl);
+        const count = items.length;
+        if (count === 0) return;
+
+        const cw = this.config.cardWidth;
+        const ch = this.config.cardHeight;
+        const gap = 10;
+        const zoneWidth = zoneEl.offsetWidth;
+
+        let step = cw + gap;
+        
+        if (count > 1) {
+            const availableSpace = zoneWidth - cw;
+            const maxStep = availableSpace / (count - 1);
+            step = Math.min(step, maxStep);
+        }
+
+        const totalGroupWidth = (count - 1) * step + cw;
+        const startX = center.x - (totalGroupWidth / 2);
+        const startY = center.y - (ch / 2);
+
+        items.forEach((token, i) => {
+            const x = startX + (i * step);
+            token.moveTo(x, startY, 0);
+            token.el.style.zIndex = i;
+        });
+    }
+}
+
+class PileStrategy {
+    constructor(config, maxAngle = 15) {
+        this.config = config;
+        this.maxAngle = maxAngle;
+    }
+
+    update(items, zoneEl, stageEl) {
+        const center = StageHelper.getRelativePos(zoneEl, stageEl);
+        const cw = this.config.cardWidth;
+        const ch = this.config.cardHeight;
+
+        items.forEach((token, i) => {
+            // Center the card based on its dimensions
+            const x = center.x - (cw / 2); 
+            const y = center.y - (ch / 2);
+
+            const angle = Math.sin(i * 12345) * this.maxAngle;
+            token.moveTo(x, y, angle);
+            token.el.style.zIndex = i;
+        });
+    }
+}
+
+// 4. Zone Wrapper
+class Zone {
+    constructor(id, strategy, pool, stageEl) {
+        this.el = document.getElementById(id);
+        this.strategy = strategy;
+        this.items = []; 
+        this.pool = pool;
+        this.stageEl = stageEl;
+    }
+
+    add(token) {
+        this.items.push(token);
+        this.render();
+    }
+
+    removeIndices(indices) {
+        indices.sort((a, b) => b - a);
+        const removed = [];
+        indices.forEach(idx => {
+            if (this.items[idx]) {
+                removed.push(this.items.splice(idx, 1)[0]);
+            }
+        });
+        this.render();
+        return removed;
+    }
+
+    clear() {
+        const all = [...this.items];
+        this.items = [];
+        this.render();
+        return all;
+    }
+
+    render() {
+        this.strategy.update(this.items, this.el, this.stageEl);
+    }
+}
+
+// 5. Card Visual Engine (Renamed from GameManager)
+class CardVisualEngine {
+    /**
+     * @param {string} stageId - DOM ID of the main container
+     * @param {object} config - Configuration object
+     * @param {number} config.cardWidth 
+     * @param {number} config.cardHeight
+     * @param {function} config.renderCard - Callback(element, type) to draw card face
+     */
+    constructor(stageId, config) {
+        this.stageEl = document.getElementById(stageId);
+        this.config = config;
+        
+        this.pool = new TokenPool(this.stageEl, this.config.renderCard);
+        this.zones = {};
+
+        // Auto-resize handling
+        const ro = new ResizeObserver(() => this.renderAll());
+        ro.observe(this.stageEl);
+    }
+
+    createZone(zoneId, strategyType, options = {}) {
+        let strategy;
+        if (strategyType === 'row') {
+            strategy = new CenterRowStrategy(this.config);
+        } else if (strategyType === 'pile') {
+            strategy = new PileStrategy(this.config, options.angle || 15);
+        }
+
+        const zone = new Zone(zoneId, strategy, this.pool, this.stageEl);
+        this.zones[zoneId] = zone;
+        return zone;
+    }
+
+    renderAll() {
+        Object.values(this.zones).forEach(z => z.render());
+    }
+}

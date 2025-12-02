@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Refactored BGA Demo</title>
+    <link rel="stylesheet" href="card-engine.css">
+    <style>
+        /* --- DEMO SPECIFIC STYLES --- */
+        :root {
+            --card-w: 80px;
+            --card-h: 112px;
+            --bg-color: #202020;
+        }
+
+        body {
+            margin: 0;
+            background-color: #111;
+            font-family: sans-serif;
+            color: white;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        #bga-zoom-wrapper {
+            width: 1000px;
+            height: 700px;
+            background-color: var(--bg-color);
+            transform: scale(0.9);
+            position: relative;
+            box-shadow: 0 0 50px rgba(0,0,0,0.5);
+        }
+
+        #game-stage {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Layout */
+        .layout-row {
+            display: flex;
+            justify-content: center;
+            padding: 20px;
+            height: 200px;
+        }
+        .bottom-row {
+            position: absolute;
+            bottom: 20px;
+            width: 100%;
+        }
+
+        /* Zones */
+        .zone-placeholder {
+            border: 2px dashed rgba(255,255,255,0.2);
+            border-radius: 10px;
+            margin: 0 20px;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        #zone-deck, #zone-discard { width: 100px; height: 140px; }
+        #zone-hand { width: 600px; height: 160px; }
+
+        .label {
+            position: absolute;
+            bottom: -20px;
+            font-size: 12px;
+            color: #888;
+        }
+
+        /* Deck Visual */
+        .deck-visual {
+            width: var(--card-w);
+            height: var(--card-h);
+            background: linear-gradient(135deg, #444 0%, #222 100%);
+            border-radius: 6px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+            border: 1px solid #666;
+        }
+
+        /* Card Styles (injected into the reusable tokens) */
+        .card-token {
+            width: var(--card-w);
+            height: var(--card-h);
+        }
+        .card-face {
+            border-radius: 6px;
+            border: 1px solid rgba(0,0,0,0.2);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 18px;
+            font-weight: bold;
+            background: white;
+            color: #333;
+        }
+        .face-back {
+            background: linear-gradient(135deg, #444 0%, #222 100%);
+        }
+        
+        /* Suit Colors */
+        .suit-H, .suit-D { color: #e63946; }
+        .suit-C, .suit-S { color: #1d3557; }
+
+        /* UI Panel */
+        #admin-panel {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(255,255,255,0.9);
+            padding: 15px;
+            border-radius: 8px;
+            color: #333;
+            z-index: 1000;
+        }
+        button {
+            display: block;
+            width: 100%;
+            margin-bottom: 8px;
+            padding: 8px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="bga-zoom-wrapper">
+        <div id="game-stage">
+            
+            <div class="layout-row top-row">
+                <div id="zone-deck" class="zone-placeholder">
+                    <span class="label">Deck</span>
+                    <div class="deck-visual"></div>
+                </div>
+
+                <div id="zone-discard" class="zone-placeholder">
+                    <span class="label">Discard</span>
+                </div>
+            </div>
+
+            <div class="layout-row bottom-row">
+                <div id="zone-hand" class="zone-placeholder wide">
+                    <span class="label">Player Hand</span>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <div id="admin-panel">
+        <h3>Demo Controls</h3>
+        <button onclick="mockGame.drawCard()">Draw Card</button>
+        <button onclick="mockGame.discardRandom()">Discard Random</button>
+        <button onclick="mockGame.reshuffle()">Reshuffle</button>
+    </div>
+
+    <script src="card-engine.js"></script>
+
+    <script>
+        // 1. Setup Logic for Rendering Content (Poker specific)
+        const renderPokerCard = (element, type) => {
+            const suit = type.charAt(0); // 'H', 'D', 'C', 'S'
+            const val = type.substring(1);
+            
+            const icons = { H: '♥', D: '♦', S: '♠', C: '♣' };
+            const icon = icons[suit] || '';
+
+            element.innerHTML = `${val}<br><span style="font-size:24px">${icon}</span>`;
+            
+            // Add class for coloring
+            element.className = `card-face face-front suit-${suit}`;
+        };
+
+        // 2. Initialize Engine with Config
+        const engine = new CardVisualEngine('game-stage', {
+            cardWidth: 80,
+            cardHeight: 112,
+            renderCard: renderPokerCard
+        });
+
+        // 3. Create Logical Zones using the Engine
+        const zones = {
+            hand: engine.createZone('zone-hand', 'row'),
+            discard: engine.createZone('zone-discard', 'pile'),
+            // Deck is just a reference point for this demo
+            deckEl: document.getElementById('zone-deck')
+        };
+
+        // 4. Mock Game Logic (The controller)
+        const mockGame = {
+            drawCard: function() {
+                const suits = ['H', 'D', 'S', 'C'];
+                const vals = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
+                const type = suits[Math.floor(Math.random()*4)] + vals[Math.floor(Math.random()*13)];
+
+                const deckPos = StageHelper.getRelativePos(zones.deckEl, engine.stageEl);
+                
+                // Fix 1: Spawn as FLIPPED (Face Down) at the deck position
+                const token = engine.pool.spawn(type, deckPos.x - 40, deckPos.y - 56, true);
+
+                // Fix 2: Add to hand (calculates new X,Y)
+                zones.hand.add(token);
+
+                // Fix 3: Immediately set target state to Face Up.
+                // The browser transitions from [Deck, Back] -> [Hand, Front]
+                token.setFlipped(false);
+            },
+
+            discardRandom: function() {
+                if (zones.hand.items.length === 0) return;
+                const idx = Math.floor(Math.random() * zones.hand.items.length);
+                const [token] = zones.hand.removeIndices([idx]);
+                zones.discard.add(token);
+            },
+
+           reshuffle: function() { // async を削除
+                if (zones.discard.items.length === 0) return;
+                
+                // 1. 論理的な移動: ゾーンの配列は即座に空にする
+                const tokens = zones.discard.clear();
+                const deckPos = StageHelper.getRelativePos(zones.deckEl, engine.stageEl);
+        
+                // 2. 視覚的な移動: Fire-and-forget (結果を待たない)
+                tokens.forEach((token, i) => {
+                    // 少しだけタイミングをずらす（視覚的演出）
+                    setTimeout(() => {
+                        // デッキの位置へ移動
+                        token.moveTo(deckPos.x - 40, deckPos.y - 56, 0);
+                        token.setFlipped(true);
+        
+                        // CSSのtransition: 0.5s に合わせ、移動完了後にプールへ戻す
+                        // 厳密なイベント監視を行わず、固定時間で処理する
+                        setTimeout(() => {
+                            engine.pool.despawn(token);
+                        }, 500); 
+        
+                    }, i * 20); // 待ち時間を短縮し、テンポを向上
+                });
+            }
+        };
+
+        // Initial Draw
+        setTimeout(() => {
+            for(let i=0; i<5; i++) setTimeout(() => mockGame.drawCard(), i*200);
+        }, 500);
+
+    </script>
+</body>
+</html>
