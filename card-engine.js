@@ -1,7 +1,10 @@
 /**
  * card-engine.js
  * Core library for card positioning and animation.
+ * ES Module version: Only exposes CardVisualEngine.
  */
+
+/* --- 内部クラス・ヘルパー (隠蔽) --- */
 
 // 1. Token Class: DOM Wrapper & Animation Actor
 class Token {
@@ -10,10 +13,8 @@ class Token {
         this.type = null;
         this.isFlipped = false;
         this.renderCallback = renderCallback;
-        
         this.stage = stage;
         this.config = config;
-
         this.x = 0;
         this.y = 0;
         this.rotation = 0;
@@ -22,7 +23,6 @@ class Token {
     setType(cardType) {
         this.type = cardType;
         const front = this.el.querySelector('.face-front');
-        
         if (this.renderCallback) {
             this.renderCallback(front, cardType);
         } else {
@@ -39,7 +39,6 @@ class Token {
         const center = StageHelper.getRelativePos(targetEl, this.stage);
         const x = center.x - (this.config.cardWidth / 2);
         const y = center.y - (this.config.cardHeight / 2);
-        
         this.moveTo(x, y, rotation);
     }
 
@@ -47,7 +46,6 @@ class Token {
         const center = StageHelper.getRelativePos(targetEl, this.stage);
         const x = center.x - (this.config.cardWidth / 2);
         const y = center.y - (this.config.cardHeight / 2);
-
         this.jumpTo(x, y);
     }
 
@@ -146,7 +144,6 @@ class CenterRowStrategy {
         const zoneWidth = zoneEl.offsetWidth;
 
         let step = cw + gap;
-        
         if (count > 1) {
             const availableSpace = zoneWidth - cw;
             const maxStep = availableSpace / (count - 1);
@@ -179,7 +176,6 @@ class PileStrategy {
         items.forEach((token, i) => {
             const x = center.x - (cw / 2); 
             const y = center.y - (ch / 2);
-
             const angle = Math.sin(i * 12345) * this.maxAngle;
             token.moveTo(x, y, angle);
             token.el.style.zIndex = i;
@@ -189,15 +185,8 @@ class PileStrategy {
 
 // 4. Zone Wrapper
 class Zone {
-    /**
-     * Refactored: Accepts explicit HTMLElement instead of ID string.
-     * @param {HTMLElement} element 
-     * @param {object} strategy 
-     * @param {TokenPool} pool 
-     * @param {HTMLElement} stageEl 
-     */
     constructor(element, strategy, pool, stageEl) {
-        this.el = element; // Direct assignment, no DOM lookup here
+        this.el = element;
         this.strategy = strategy;
         this.items = []; 
         this.pool = pool;
@@ -233,46 +222,28 @@ class Zone {
     }
 }
 
+/* --- 公開 API (Export) --- */
+
 // 5. Card Visual Engine
-class CardVisualEngine {
-    /**
-     * Refactored:
-     * @param {HTMLElement} stageElement - The stage element itself
-     * @param {object} config 
-     */
+export default class CardVisualEngine {
     constructor(stageElement, config) {
         this.stageEl = stageElement;
         this.config = config;
         
+        // Internal instances are created here, hidden from the user
         this.pool = new TokenPool(this.stageEl, this.config.renderCard, this.config);
         this.zones = []; 
         
-        // Auto-resize handling with transition suppression
         const ro = new ResizeObserver(() => {
-            // 1. Temporarily disable CSS transitions on the container
             this.stageEl.classList.add('no-transition');
-
-            // 2. Recalculate positions (this updates transform styles)
             this.renderAll();
-
-            // 3. Force Reflow/Layout Thrashing intentionally
-            // This ensures the browser applies the new transform *while* transition is disabled.
-            // Without this, the browser might batch the DOM updates until after the class is removed.
             void this.stageEl.offsetHeight;
-
-            // 4. Re-enable transitions
             this.stageEl.classList.remove('no-transition');
         });
         
         ro.observe(this.stageEl);
     }
 
-    /**
-     * Refactored:
-     * @param {HTMLElement} zoneElement - The element to become a zone
-     * @param {string} strategyType 
-     * @param {object} options 
-     */
     createZone(zoneElement, strategyType, options = {}) {
         let strategy;
         if (strategyType === 'row') {
@@ -281,6 +252,7 @@ class CardVisualEngine {
             strategy = new PileStrategy(this.config, options.angle || 15);
         }
 
+        // Returns a Zone instance, but the Class itself is not exported
         const zone = new Zone(zoneElement, strategy, this.pool, this.stageEl);
         this.zones.push(zone);
         return zone;

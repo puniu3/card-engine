@@ -158,9 +158,12 @@
         <button onclick="mockGame.reshuffle()">Reshuffle</button>
     </div>
 
-    <script src="card-engine.js"></script>
+    <script type="module" src="card-engine.js"></script>
 
-    <script>
+
+    <script type="module">
+        // default export なので好きな名前でインポート可能
+        import CardVisualEngine from './card-engine.js';
         // 1. Setup Logic for Rendering Content (Poker specific)
         const renderPokerCard = (element, type) => {
             const suit = type.charAt(0); // 'H', 'D', 'C', 'S'
@@ -197,7 +200,7 @@
         };
 
         // 5. Mock Game Logic (The controller)
-        const mockGame = {
+        window.mockGame = {
             drawCard: function() {
                 const suits = ['H', 'D', 'S', 'C'];
                 const vals = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
