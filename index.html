@@ -197,9 +197,8 @@
                 const vals = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
                 const type = suits[Math.floor(Math.random()*4)] + vals[Math.floor(Math.random()*13)];
 
-                const deckPos = StageHelper.getRelativePos(zones.deckEl, engine.stageEl);
-                
-                const token = engine.pool.spawn(type, deckPos.x - 40, deckPos.y - 56);
+                // REFACTORED: Pass the Anchor Element directly. No coordinate math needed here.
+                const token = engine.pool.spawn(type, zones.deckEl);
 
                 zones.hand.add(token);
             },
@@ -211,28 +210,25 @@
                 zones.discard.add(token);
             },
 
-           reshuffle: function() { // async を削除
+           reshuffle: function() {
                 if (zones.discard.items.length === 0) return;
                 
-                // 1. 論理的な移動: ゾーンの配列は即座に空にする
+                // 1. Logical move
                 const tokens = zones.discard.clear();
-                const deckPos = StageHelper.getRelativePos(zones.deckEl, engine.stageEl);
         
-                // 2. 視覚的な移動: Fire-and-forget (結果を待たない)
+                // 2. Visual move: Fire-and-forget
                 tokens.forEach((token, i) => {
-                    // 少しだけタイミングをずらす（視覚的演出）
                     setTimeout(() => {
-                        // デッキの位置へ移動
-                        token.moveTo(deckPos.x - 40, deckPos.y - 56, 0);
+                        
+                        // REFACTORED: Use the new Anchor method
+                        token.moveToAnchor(zones.deckEl, 0);
                         token.setFlipped(true);
         
-                        // CSSのtransition: 0.5s に合わせ、移動完了後にプールへ戻す
-                        // 厳密なイベント監視を行わず、固定時間で処理する
                         setTimeout(() => {
                             engine.pool.despawn(token);
                         }, 500); 
         
-                    }, i * 20); // 待ち時間を短縮し、テンポを向上
+                    }, i * 20);
                 });
             }
         };
@@ -240,7 +236,7 @@
         // Initial Draw
         setTimeout(() => {
             for(let i=0; i<5; i++) setTimeout(() => mockGame.drawCard(), i*60);
-        }, 500);
+        }, 400);
 
     </script>
 </body>

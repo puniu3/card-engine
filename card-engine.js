@@ -5,12 +5,17 @@
 
 // 1. Token Class: DOM Wrapper & Animation Actor
 class Token {
-    constructor(element, renderCallback) {
+    // Refactored: Accept stage and config to handle anchor-based positioning internally
+    constructor(element, renderCallback, stage, config) {
         this.el = element;
         this.type = null;
         this.isFlipped = false;
-        this.renderCallback = renderCallback; // Function to render content
+        this.renderCallback = renderCallback;
         
+        // Store context for coordinate calculations
+        this.stage = stage;
+        this.config = config;
+
         this.x = 0;
         this.y = 0;
         this.rotation = 0;
@@ -20,7 +25,6 @@ class Token {
         this.type = cardType;
         const front = this.el.querySelector('.face-front');
         
-        // Delegate rendering logic to the callback provided in config
         if (this.renderCallback) {
             this.renderCallback(front, cardType);
         } else {
@@ -31,6 +35,34 @@ class Token {
     setFlipped(flipped) {
         this.isFlipped = flipped;
         this.applyTransform();
+    }
+
+    /**
+     * Moves the token to a specific DOM element (Anchor).
+     * Calculates the center position automatically based on card dimensions.
+     * @param {HTMLElement} targetEl - The anchor element (e.g., Deck slot)
+     * @param {number} rotation - Optional rotation angle
+     */
+    moveToAnchor(targetEl, rotation = 0) {
+        const center = StageHelper.getRelativePos(targetEl, this.stage);
+        
+        // Adjust for card dimensions to center it perfectly
+        const x = center.x - (this.config.cardWidth / 2);
+        const y = center.y - (this.config.cardHeight / 2);
+        
+        this.moveTo(x, y, rotation);
+    }
+
+    /**
+     * Instantly jumps to a specific DOM element without animation.
+     * @param {HTMLElement} targetEl 
+     */
+    jumpToAnchor(targetEl) {
+        const center = StageHelper.getRelativePos(targetEl, this.stage);
+        const x = center.x - (this.config.cardWidth / 2);
+        const y = center.y - (this.config.cardHeight / 2);
+
+        this.jumpTo(x, y);
     }
 
     moveTo(x, y, rotation = 0) {
@@ -55,13 +87,21 @@ class Token {
 
 // 2. Token Pool
 class TokenPool {
-    constructor(stageElement, renderCallback) {
+    // Refactored: Require config to pass dimensions to Tokens
+    constructor(stageElement, renderCallback, config) {
         this.stage = stageElement;
         this.pool = [];
         this.renderCallback = renderCallback;
+        this.config = config; 
     }
 
-    spawn(cardType, x, y, initialFlipped = false) {
+    /**
+     * Refactored: Spawn now accepts a DOM element (anchor) instead of raw coordinates.
+     * @param {string} cardType 
+     * @param {HTMLElement} anchorEl - Where the card should appear
+     * @param {boolean} initialFlipped 
+     */
+    spawn(cardType, anchorEl, initialFlipped = false) {
         let token;
         if (this.pool.length > 0) {
             token = this.pool.pop();
@@ -72,11 +112,13 @@ class TokenPool {
         
         token.setType(cardType);
         
-        // Fix: Set the initial flip state BEFORE forcing reflow in jumpTo
+        // Set initial state
         token.setFlipped(initialFlipped);
         
-        // This forces reflow, locking in the initial position and rotation
-        token.jumpTo(x, y);
+        // Use the new anchor-based jump
+        if (anchorEl) {
+            token.jumpToAnchor(anchorEl);
+        }
         
         return token;
     }
@@ -94,7 +136,8 @@ class TokenPool {
             <div class="card-face face-back"></div>
         `;
         this.stage.appendChild(el);
-        return new Token(el, this.renderCallback);
+        // Pass stage and config to the Token instance
+        return new Token(el, this.renderCallback, this.stage, this.config);
     }
 }
 
@@ -114,7 +157,7 @@ const StageHelper = {
 
 class CenterRowStrategy {
     constructor(config) {
-        this.config = config; // { cardWidth, cardHeight, ... }
+        this.config = config;
     }
 
     update(items, zoneEl, stageEl) {
@@ -159,7 +202,6 @@ class PileStrategy {
         const ch = this.config.cardHeight;
 
         items.forEach((token, i) => {
-            // Center the card based on its dimensions
             const x = center.x - (cw / 2); 
             const y = center.y - (ch / 2);
 
@@ -209,23 +251,16 @@ class Zone {
     }
 }
 
-// 5. Card Visual Engine (Renamed from GameManager)
+// 5. Card Visual Engine
 class CardVisualEngine {
-    /**
-     * @param {string} stageId - DOM ID of the main container
-     * @param {object} config - Configuration object
-     * @param {number} config.cardWidth 
-     * @param {number} config.cardHeight
-     * @param {function} config.renderCard - Callback(element, type) to draw card face
-     */
     constructor(stageId, config) {
         this.stageEl = document.getElementById(stageId);
         this.config = config;
         
-        this.pool = new TokenPool(this.stageEl, this.config.renderCard);
+        // Pass config to pool so it can configure Tokens correctly
+        this.pool = new TokenPool(this.stageEl, this.config.renderCard, this.config);
         this.zones = {};
 
-        // Auto-resize handling
         const ro = new ResizeObserver(() => this.renderAll());
         ro.observe(this.stageEl);
     }
