@@ -1,7 +1,7 @@
 /**
  * card-engine.js
  * Core library for card positioning and animation.
- * ES Module version: Only exposes CardVisualEngine.
+ * ES Module version: Only exposes Stage.
  */
 
 /* --- Internal Classes & Helpers (Encapsulated) --- */
@@ -9,7 +9,6 @@
 // 1. Token Class: DOM Wrapper & Animation Actor
 class Token {
     constructor(element, renderCallback, stage, config) {
-        // Internal state is now prefixed with "_"
         this._el = element;
         this._renderCallback = renderCallback;
         this._stage = stage;
@@ -25,8 +24,8 @@ class Token {
         this._isFlipped = false;
     }
 
-    // Public accessor if strictly needed, otherwise keep private
     get element() { return this._el; }
+    get type() { return this._type; }
 
     setType(cardType) {
         this._type = cardType;
@@ -184,7 +183,6 @@ class PileStrategy {
         items.forEach((token, i) => {
             const x = center.x - (cw / 2); 
             const y = center.y - (ch / 2);
-            // Pseudo-random deterministic rotation
             const angle = Math.sin(i * 12345) * this._maxAngle;
             token.moveTo(x, y, angle);
             token.element.style.zIndex = i;
@@ -198,11 +196,10 @@ class Zone {
         this._el = element;
         this._strategy = strategy;
         this._items = []; 
-        this._pool = pool; // Reference to internal pool if needed
+        this._pool = pool;
         this._stageEl = stageEl;
     }
 
-    // Public getter to safely access items (read-only)
     get items() {
         return this._items;
     }
@@ -213,7 +210,6 @@ class Zone {
     }
 
     removeIndices(indices) {
-        // Sort descending to prevent index shift issues during splice
         indices.sort((a, b) => b - a);
         const removed = [];
         indices.forEach(idx => {
@@ -239,14 +235,23 @@ class Zone {
 
 /* --- Public API (Export) --- */
 
-// 5. Card Visual Engine
-export default class CardVisualEngine {
-    constructor(stageElement, config) {
-        this._stageEl = stageElement;
+/**
+ * Stage
+ * 
+ * A bounded coordinate space for card positioning and animation.
+ * 
+ * Scope & Limitations:
+ * - Operates within a SINGLE non-scrolling container element
+ * - All coordinate calculations are relative to this container
+ * - For multi-container scenarios, instantiate separate Stages
+ *   and handle cross-stage transfers at a higher layer
+ */
+export default class Stage {
+    constructor(containerEl, config) {
+        this._stageEl = containerEl;
         this._config = config;
         this._zones = []; 
         
-        // Encapsulate the pool entirely within the engine
         this._pool = new TokenPool(this._stageEl, this._config.renderCard, this._config);
         
         const ro = new ResizeObserver(() => {
@@ -259,16 +264,10 @@ export default class CardVisualEngine {
         ro.observe(this._stageEl);
     }
 
-    /**
-     * Facade method to spawn a card without exposing the pool logic.
-     */
     spawn(cardType, anchorEl, initialFlipped = false) {
         return this._pool.spawn(cardType, anchorEl, initialFlipped);
     }
 
-    /**
-     * Facade method to remove/recycle a card.
-     */
     despawn(token) {
         this._pool.despawn(token);
     }

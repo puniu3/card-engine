@@ -8,8 +8,6 @@
     <style>
         /* --- DEMO SPECIFIC STYLES --- */
         :root {
-            /* ライブラリのデフォルト(--card-w: 80px)をそのまま採用するため
-               ここでは上書きしません。必要ならここで再定義します。 */
             --bg-color: #202020;
         }
 
@@ -58,7 +56,6 @@
             align-items: center;
         }
         
-        /* Specific sizes for zones based on expected card content */
         #zone-deck, #zone-discard { width: 100px; height: 140px; }
         #zone-hand { width: 600px; height: 160px; }
 
@@ -69,7 +66,7 @@
             color: #888;
         }
 
-        /* Deck Visual (Static element representing the stack) */
+        /* Deck Visual */
         .deck-visual {
             width: var(--card-w);
             height: var(--card-h);
@@ -80,10 +77,7 @@
         }
 
         /* Game Specific: Poker Suit Colors */
-        /* Note: Card shape/size styles are now imported from card-engine.css */
-        
         .card-face {
-            /* デモ固有: フォントサイズ調整やテキスト色 */
             font-size: 18px;
             color: #333; 
         }
@@ -143,9 +137,8 @@
         <button onclick="mockGame.reshuffle()">Reshuffle</button>
     </div>
 
-    <script type="module" src="card-engine.js"></script>
     <script type="module">
-        import CardVisualEngine from './card-engine.js';
+        import Stage from './card-engine.js';
         
         const renderPokerCard = (element, type) => {
             const suit = type.charAt(0);
@@ -154,25 +147,23 @@
             const icon = icons[suit] || '';
 
             element.innerHTML = `${val}<br><span style="font-size:24px">${icon}</span>`;
-            // Note: face-front class is already styled by library
             element.className = `card-face face-front suit-${suit}`;
         };
 
         const stageEl = document.getElementById('game-stage');
-        const engine = new CardVisualEngine(stageEl, {
+        const stage = new Stage(stageEl, {
             cardWidth: 80,
             cardHeight: 112,
             renderCard: renderPokerCard
         });
 
-        // ... (Rest of the JS logic remains same) ...
         const deckEl = document.getElementById('zone-deck');
         const handEl = document.getElementById('zone-hand');
         const discardEl = document.getElementById('zone-discard');
 
         const zones = {
-            hand: engine.createZone(handEl, 'row'),
-            discard: engine.createZone(discardEl, 'pile'),
+            hand: stage.createZone(handEl, 'row'),
+            discard: stage.createZone(discardEl, 'pile'),
             deckEl: deckEl
         };
 
@@ -181,7 +172,7 @@
                 const suits = ['H', 'D', 'S', 'C'];
                 const vals = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
                 const type = suits[Math.floor(Math.random()*4)] + vals[Math.floor(Math.random()*13)];
-                const token = engine.spawn(type, zones.deckEl);
+                const token = stage.spawn(type, zones.deckEl);
                 zones.hand.add(token);
             },
             discardRandom: function() {
@@ -197,7 +188,7 @@
                     setTimeout(() => {
                         token.moveToAnchor(zones.deckEl, 0);
                         token.setFlipped(true);
-                        setTimeout(() => { engine.despawn(token); }, 500); 
+                        setTimeout(() => { stage.despawn(token); }, 500); 
                     }, i * 20);
                 });
             }
