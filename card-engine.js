@@ -1,12 +1,27 @@
 /**
  * card-engine.js
- * Core library for card positioning and animation.
- * ES Module version: Only exposes Stage.
+ * 
+ * Theatrical animation library for card games.
+ * Provides Stage (animation space) and Token (card actor) abstractions.
+ * 
+ * EXPORTS: Stage (default)
+ * INTERNAL: Token, TokenPool, Zone, Strategies
+ * 
+ * @see Stage class documentation for architecture and usage patterns
  */
 
-/* --- Internal Classes & Helpers (Encapsulated) --- */
+/* ═══════════════════════════════════════════════════════════════════
+   INTERNAL CLASSES (Not Exported)
+   These are implementation details. Do not expose or depend on directly.
+   ═══════════════════════════════════════════════════════════════════ */
 
-// 1. Token Class: DOM Wrapper & Animation Actor
+/**
+ * Token - A card actor on the Stage.
+ * 
+ * Tokens are DOM wrappers managed by TokenPool for efficient reuse.
+ * They represent cards visually but do NOT hold game state.
+ * Within Stage, Tokens persist in Zones until explicitly despawned.
+ */
 class Token {
     constructor(element, renderCallback, stage, config) {
         this._el = element;
@@ -76,7 +91,12 @@ class Token {
     }
 }
 
-// 2. Token Pool (Internal Memory Management)
+/**
+ * TokenPool - Object pool for Token recycling.
+ * 
+ * Avoids DOM thrashing by reusing Token elements.
+ * Tokens are despawned (hidden & pooled), not destroyed.
+ */
 class TokenPool {
     constructor(stageElement, renderCallback, config) {
         this._stage = stageElement;
@@ -121,7 +141,12 @@ class TokenPool {
     }
 }
 
-// 3. Layout Strategies
+/**
+ * StageHelper - Coordinate calculation utilities.
+ * 
+ * IMPORTANT: Assumes stageEl is non-scrolling.
+ * If stageEl.scrollTop/Left > 0, calculations will be wrong.
+ */
 const StageHelper = {
     getRelativePos(targetEl, stageEl) {
         const stageRect = stageEl.getBoundingClientRect();
@@ -135,6 +160,10 @@ const StageHelper = {
     }
 };
 
+/**
+ * Layout Strategies - Positioning algorithms for Zones.
+ * Each strategy implements update(items, zoneEl, stageEl).
+ */
 class CenterRowStrategy {
     constructor(config) {
         this._config = config;
@@ -190,7 +219,12 @@ class PileStrategy {
     }
 }
 
-// 4. Zone Wrapper
+/**
+ * Zone - A logical grouping of Tokens with a layout strategy.
+ * 
+ * Zones are anchored to a DOM element and arrange their
+ * Tokens according to the assigned strategy (row, pile, etc.).
+ */
 class Zone {
     constructor(element, strategy, pool, stageEl) {
         this._el = element;
@@ -236,15 +270,86 @@ class Zone {
 /* --- Public API (Export) --- */
 
 /**
- * Stage
+ * Stage - A theatrical space for card animation and choreography.
  * 
- * A bounded coordinate space for card positioning and animation.
+ * ═══════════════════════════════════════════════════════════════════
+ * CONCEPT
+ * ═══════════════════════════════════════════════════════════════════
+ * Stage is a bounded, non-scrolling coordinate space where Tokens
+ * (card actors) live and move. All positioning is handled purely
+ * through Stage-relative coordinates — no scroll offsets involved.
  * 
- * Scope & Limitations:
- * - Operates within a SINGLE non-scrolling container element
- * - All coordinate calculations are relative to this container
- * - For multi-container scenarios, instantiate separate Stages
- *   and handle cross-stage transfers at a higher layer
+ * Hand, discard pile, and other fixed zones exist within Stage.
+ * Tokens persist here as long as they belong to these zones.
+ * 
+ * ═══════════════════════════════════════════════════════════════════
+ * SCOPE (What Stage Manages)
+ * ═══════════════════════════════════════════════════════════════════
+ * - Elements that need NO scrolling
+ * - Positioning based purely on Stage-relative coordinates
+ * - Animated movement between Zones within the Stage
+ * 
+ * ═══════════════════════════════════════════════════════════════════
+ * RESPONSIBILITIES
+ * ═══════════════════════════════════════════════════════════════════
+ * - Spawn/despawn Tokens (pooled DOM elements for performance)
+ * - Animate Token movement within the bounded space
+ * - Manage Zones (logical groupings with layout strategies)
+ * - Handle coordinate calculations relative to container
+ * - Respond to container resize
+ * 
+ * ═══════════════════════════════════════════════════════════════════
+ * BOUNDARIES (What Stage Does NOT Do)
+ * ═══════════════════════════════════════════════════════════════════
+ * - NO scrolling support — if you need scroll, it's outside Stage
+ * - NO cross-stage transfers — handle at higher layer
+ * - NO game logic — purely visual/animation concerns
+ * 
+ * ═══════════════════════════════════════════════════════════════════
+ * ARCHITECTURE PATTERN
+ * ═══════════════════════════════════════════════════════════════════
+ * 
+ *   ┌─────────────────────────────────────┐
+ *   │ Stage                               │
+ *   │ - No scrolling                      │
+ *   │ - Pure coordinate-based positioning │
+ *   │ - Tokens persist in Zones           │
+ *   │   (hand, discard, deck, etc.)       │
+ *   └──────────────┬──────────────────────┘
+ *                  │ despawn + create equivalent
+ *                  ▼
+ *   ┌─────────────────────────────────────┐
+ *   │ Scrollable Area (outside Stage)     │
+ *   │ - Uses flexbox/grid layout          │
+ *   │ - Normal DOM elements               │
+ *   │ - Managed separately                │
+ *   └─────────────────────────────────────┘
+ * 
+ * When moving cards to a scrollable area, despawn the Token
+ * and create an equivalent DOM element in that area.
+ * 
+ * ═══════════════════════════════════════════════════════════════════
+ * USAGE EXAMPLE
+ * ═══════════════════════════════════════════════════════════════════
+ * 
+ *   const stage = new Stage(containerEl, {
+ *       cardWidth: 80,
+ *       cardHeight: 112,
+ *       renderCard: (el, type) => { el.textContent = type; }
+ *   });
+ *   
+ *   const hand = stage.createZone(handEl, 'row');
+ *   const token = stage.spawn('Ace', deckEl);
+ *   hand.add(token);  // Animates into hand, persists there
+ *   
+ *   // Moving to a scrollable area (outside Stage):
+ *   hand.removeIndices([0]);
+ *   token.element.style.opacity = 0;
+ *   await wait(300);
+ *   stage.despawn(token);
+ *   scrollableArea.appendChild(createCardElement('Ace'));
+ * 
+ * ═══════════════════════════════════════════════════════════════════
  */
 export default class Stage {
     constructor(containerEl, config) {
