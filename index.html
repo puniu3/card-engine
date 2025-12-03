@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Refactored BGA Demo</title>
+    <title>Card Engine - Flow Zone Demo</title>
     <link rel="stylesheet" href="card-engine.css">
     <style>
         /* --- DEMO SPECIFIC STYLES --- */
         :root {
-            /* ライブラリのデフォルト(--card-w: 80px)をそのまま採用するため
-               ここでは上書きしません。必要ならここで再定義します。 */
             --bg-color: #202020;
+            --teleport-distance: 50px;
+            --teleport-duration: 350ms;
         }
 
         body {
@@ -53,23 +53,40 @@
             border-radius: 10px;
             margin: 0 20px;
             position: relative;
+        }
+        
+        #zone-deck, #zone-discard { 
+            width: 100px; 
+            height: 140px;
             display: flex;
             justify-content: center;
             align-items: center;
         }
         
-        /* Specific sizes for zones based on expected card content */
-        #zone-deck, #zone-discard { width: 100px; height: 140px; }
-        #zone-hand { width: 600px; height: 160px; }
+        /* Hand Zone: Flow layout */
+        #zone-hand { 
+            width: 700px; 
+            min-height: 140px;
+            padding: 15px;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            perspective: 1200px;
+            transform-style: preserve-3d;
+        }
 
         .label {
             position: absolute;
-            bottom: -20px;
+            bottom: -25px;
+            left: 50%;
+            transform: translateX(-50%);
             font-size: 12px;
             color: #888;
+            white-space: nowrap;
         }
 
-        /* Deck Visual (Static element representing the stack) */
         .deck-visual {
             width: var(--card-w);
             height: var(--card-h);
@@ -79,11 +96,7 @@
             border: 1px solid #666;
         }
 
-        /* Game Specific: Poker Suit Colors */
-        /* Note: Card shape/size styles are now imported from card-engine.css */
-        
         .card-face {
-            /* デモ固有: フォントサイズ調整やテキスト色 */
             font-size: 18px;
             color: #333; 
         }
@@ -91,23 +104,58 @@
         .suit-H, .suit-D { color: #e63946; }
         .suit-C, .suit-S { color: #1d3557; }
 
-        /* UI Panel */
+        #zone-hand .card-token.flow-mode:hover {
+            transform: translateY(-8px) scale(1.05);
+            z-index: 999 !important;
+        }
+
         #admin-panel {
             position: fixed;
             top: 20px;
             right: 20px;
-            background: rgba(255,255,255,0.9);
-            padding: 15px;
-            border-radius: 8px;
+            background: rgba(255,255,255,0.95);
+            padding: 15px 20px;
+            border-radius: 10px;
             color: #333;
             z-index: 1000;
+            min-width: 200px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
         }
+        
+        #admin-panel h3 {
+            margin: 0 0 15px 0;
+            font-size: 16px;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 10px;
+        }
+        
         button {
             display: block;
             width: 100%;
-            margin-bottom: 8px;
-            padding: 8px;
+            margin-bottom: 10px;
+            padding: 10px 15px;
             cursor: pointer;
+            border: none;
+            border-radius: 6px;
+            background: #2563eb;
+            color: white;
+            font-size: 14px;
+            transition: background 0.2s;
+        }
+        
+        button:hover { background: #1d4ed8; }
+        button:last-child { margin-bottom: 0; }
+        .btn-secondary { background: #64748b; }
+        .btn-secondary:hover { background: #475569; }
+        .btn-danger { background: #dc2626; }
+        .btn-danger:hover { background: #b91c1c; }
+        
+        #status {
+            margin-top: 15px;
+            padding-top: 10px;
+            border-top: 1px solid #ddd;
+            font-size: 13px;
+            color: #666;
         }
     </style>
 </head>
@@ -123,13 +171,13 @@
                 </div>
 
                 <div id="zone-discard" class="zone-placeholder">
-                    <span class="label">Discard</span>
+                    <span class="label">Discard (Pile)</span>
                 </div>
             </div>
 
             <div class="layout-row bottom-row">
-                <div id="zone-hand" class="zone-placeholder wide">
-                    <span class="label">Player Hand</span>
+                <div id="zone-hand" class="zone-placeholder">
+                    <span class="label">Player Hand (Flow Zone)</span>
                 </div>
             </div>
 
@@ -137,13 +185,15 @@
     </div>
 
     <div id="admin-panel">
-        <h3>Demo Controls</h3>
+        <h3>🎴 Demo Controls</h3>
         <button onclick="mockGame.drawCard()">Draw Card</button>
-        <button onclick="mockGame.discardRandom()">Discard Random</button>
-        <button onclick="mockGame.reshuffle()">Reshuffle</button>
+        <button onclick="mockGame.drawMultiple(3)">Draw 3 Cards</button>
+        <button onclick="mockGame.discardRandom()" class="btn-secondary">Discard Random</button>
+        <button onclick="mockGame.discardAll()" class="btn-danger">Discard All</button>
+        <button onclick="mockGame.reshuffle()" class="btn-secondary">Reshuffle</button>
+        <div id="status">Hand: 0 cards</div>
     </div>
 
-    <script type="module" src="card-engine.js"></script>
     <script type="module">
         import CardVisualEngine from './card-engine.js';
         
@@ -154,7 +204,6 @@
             const icon = icons[suit] || '';
 
             element.innerHTML = `${val}<br><span style="font-size:24px">${icon}</span>`;
-            // Note: face-front class is already styled by library
             element.className = `card-face face-front suit-${suit}`;
         };
 
@@ -162,50 +211,88 @@
         const engine = new CardVisualEngine(stageEl, {
             cardWidth: 80,
             cardHeight: 112,
+            teleportDuration: 350,
             renderCard: renderPokerCard
         });
 
-        // ... (Rest of the JS logic remains same) ...
         const deckEl = document.getElementById('zone-deck');
         const handEl = document.getElementById('zone-hand');
         const discardEl = document.getElementById('zone-discard');
 
         const zones = {
-            hand: engine.createZone(handEl, 'row'),
+            hand: engine.createZone(handEl, 'row', { gap: 10 }),
             discard: engine.createZone(discardEl, 'pile'),
             deckEl: deckEl
         };
 
+        const updateStatus = () => {
+            document.getElementById('status').textContent = 
+                `Hand: ${zones.hand.items.length} cards`;
+        };
+
+        const randomCard = () => {
+            const suits = ['H', 'D', 'S', 'C'];
+            const vals = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
+            return suits[Math.floor(Math.random()*4)] + vals[Math.floor(Math.random()*13)];
+        };
+
         window.mockGame = {
+            // Draw a card (fire and forget)
             drawCard: function() {
-                const suits = ['H', 'D', 'S', 'C'];
-                const vals = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
-                const type = suits[Math.floor(Math.random()*4)] + vals[Math.floor(Math.random()*13)];
-                const token = engine.spawn(type, zones.deckEl);
-                zones.hand.add(token);
+                const type = randomCard();
+                engine.drawCard(type, zones.deckEl, zones.hand, {
+                    onComplete: updateStatus
+                });
             },
+
+            // Draw multiple cards with stagger
+            drawMultiple: function(count) {
+                for (let i = 0; i < count; i++) {
+                    setTimeout(() => this.drawCard(), i * 40);
+                }
+            },
+
+            // Discard a random card (fire and forget)
             discardRandom: function() {
                 if (zones.hand.items.length === 0) return;
+                
                 const idx = Math.floor(Math.random() * zones.hand.items.length);
-                const [token] = zones.hand.removeIndices([idx]);
-                zones.discard.add(token);
+                const token = zones.hand.items[idx];
+                
+                engine.transferCard(token, zones.hand, zones.discard, {
+                    onComplete: updateStatus
+                });
             },
+
+            // Discard all cards with stagger
+            discardAll: function() {
+                const items = [...zones.hand.items];
+                items.forEach((token, i) => {
+                    setTimeout(() => {
+                        engine.transferCard(token, zones.hand, zones.discard, {
+                            onComplete: updateStatus
+                        });
+                    }, i * 40);
+                });
+            },
+
+            // Reshuffle discard pile back to deck
             reshuffle: function() {
                 if (zones.discard.items.length === 0) return;
+                
                 const tokens = zones.discard.clear();
                 tokens.forEach((token, i) => {
                     setTimeout(() => {
                         token.moveToAnchor(zones.deckEl, 0);
                         token.setFlipped(true);
-                        setTimeout(() => { engine.despawn(token); }, 500); 
-                    }, i * 20);
+                        setTimeout(() => engine.despawn(token), 500);
+                    }, i * 30);
                 });
             }
         };
 
-        setTimeout(() => {
-            for(let i=0; i<5; i++) setTimeout(() => mockGame.drawCard(), i*60);
-        }, 400);
+        // Initial draw
+        setTimeout(() => mockGame.drawMultiple(5), 500);
     </script>
 </body>
 </html>

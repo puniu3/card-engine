@@ -2,9 +2,13 @@
 
 /* --- Library Defaults --- */
 :root {
-    /* ユーザーが上書き可能なデフォルトサイズ */
+    /* Overridable default card dimensions */
     --card-w: 80px;
     --card-h: 112px;
+    
+    /* Teleport animation settings */
+    --teleport-distance: 40px;
+    --teleport-duration: 300ms;
 }
 
 #game-stage {
@@ -13,7 +17,7 @@
     position: relative;
     overflow: hidden; 
     
-    /* 3D Perspective: ユーザーと画面の距離感 */
+    /* 3D Perspective for flip animations */
     perspective: 1200px; 
 }
 
@@ -26,18 +30,70 @@
     height: var(--card-h);
     z-index: 100;
     
-    will-change: transform;
+    will-change: transform, opacity;
     transition: transform 0.5s cubic-bezier(0.25, 0.8, 0.25, 1);
     transform-style: preserve-3d; 
     cursor: pointer;
 }
 
+/* --- Flow Mode: DOM-managed positioning --- */
+.card-token.flow-mode {
+    position: relative;
+    top: auto;
+    left: auto;
+    flex-shrink: 0;
+    
+    /* Flow mode still needs transition for flip */
+    transition: transform 0.3s ease, opacity var(--teleport-duration) ease;
+}
+
+/* --- Teleport Animations --- */
+
+/* Teleport OUT: Float up and fade out */
+.card-token.teleport-out {
+    transition: transform var(--teleport-duration) ease-out, 
+                opacity var(--teleport-duration) ease-out !important;
+    transform: translateY(calc(-1 * var(--teleport-distance))) scale(0.9);
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* Flow mode teleport out */
+.card-token.flow-mode.teleport-out {
+    transform: translateY(calc(-1 * var(--teleport-distance))) scale(0.9) !important;
+}
+
+/* Teleport IN preparation: Start above, invisible */
+.card-token.teleport-in-prepare {
+    transition: none !important;
+    transform: translateY(calc(-1 * var(--teleport-distance))) scale(0.9);
+    opacity: 0;
+}
+
+/* Flow mode teleport in prepare */
+.card-token.flow-mode.teleport-in-prepare {
+    transform: translateY(calc(-1 * var(--teleport-distance))) scale(0.9) !important;
+}
+
+/* Teleport IN: Drop down and fade in */
+.card-token.teleport-in {
+    transition: transform var(--teleport-duration) cubic-bezier(0.34, 1.56, 0.64, 1), 
+                opacity var(--teleport-duration) ease-out !important;
+    transform: translateY(0) scale(1);
+    opacity: 1;
+}
+
+/* Flow mode teleport in */
+.card-token.flow-mode.teleport-in {
+    transform: translateY(0) scale(1) !important;
+}
+
+/* --- Disable transitions during resize --- */
 .no-transition .card-token {
     transition: none !important;
 }
 
 /* --- Visual Defaults (Thematic) --- */
-/* カードとして最低限認識できるスタイルを提供 */
 .card-face {
     position: absolute;
     width: 100%;
@@ -61,4 +117,36 @@
     transform: rotateY(180deg);
     /* Default back design: Neutral gradient */
     background: linear-gradient(135deg, #444 0%, #222 100%);
+}
+
+/* --- Flow Zone Helper Styles --- */
+/* Apply these to your flow zone containers */
+.flow-zone {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 8px;
+    
+    /* Ensure 3D context for children */
+    perspective: 1200px;
+    transform-style: preserve-3d;
+}
+
+/* Horizontal flow (default) */
+.flow-zone.flow-horizontal {
+    flex-direction: row;
+}
+
+/* Vertical flow */
+.flow-zone.flow-vertical {
+    flex-direction: column;
+}
+
+/* Grid flow */
+.flow-zone.flow-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(var(--card-w), 1fr));
+    justify-items: center;
 }
