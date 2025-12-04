@@ -219,6 +219,43 @@ class PileStrategy {
     }
 }
 
+class GridStrategy {
+    constructor(config, options = {}) {
+        this._config = config;
+        this._gap = options.gap || [10, 10];
+        this._cols = options.cols || null; // null = auto-calculate
+    }
+
+    update(items, zoneEl, stageEl) {
+        const count = items.length;
+        if (count === 0) return;
+
+        const cw = this._config.cardWidth;
+        const ch = this._config.cardHeight;
+        const [gapX, gapY] = this._gap;
+        const zoneWidth = zoneEl.offsetWidth;
+
+        // Calculate cols: use provided value or fit as many as possible
+        const cols = this._cols || Math.max(1, Math.floor((zoneWidth + gapX) / (cw + gapX)));
+
+        // Get zone's top-left position relative to stage
+        const zoneRect = zoneEl.getBoundingClientRect();
+        const stageRect = stageEl.getBoundingClientRect();
+        const scale = stageRect.width / stageEl.offsetWidth;
+        const zoneX = (zoneRect.left - stageRect.left) / scale;
+        const zoneY = (zoneRect.top - stageRect.top) / scale;
+
+        items.forEach((token, i) => {
+            const col = i % cols;
+            const row = Math.floor(i / cols);
+            const x = zoneX + col * (cw + gapX);
+            const y = zoneY + row * (ch + gapY);
+            token.moveTo(x, y, 0);
+            token.element.style.zIndex = i;
+        });
+    }
+}
+
 /**
  * Zone - A logical grouping of Tokens with a layout strategy.
  * 
@@ -383,6 +420,11 @@ export default class Stage {
             strategy = new CenterRowStrategy(this._config);
         } else if (strategyType === 'pile') {
             strategy = new PileStrategy(this._config, options.angle || 15);
+        } else if (strategyType === 'grid') {
+            strategy = new GridStrategy(this._config, {
+                cols: options.cols,
+                gap: options.gap
+            });
         }
 
         const zone = new Zone(zoneElement, strategy, this._pool, this._stageEl);

@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scroll Container Demo</title>
+    <link rel="stylesheet" href="card-engine.css">
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #111;
+            color: white;
+            font-family: sans-serif;
+        }
+
+        h3 { margin: 0 0 10px; }
+
+        #scroll-container {
+            width: 600px;
+            height: 400px;
+            overflow: auto;
+            border: 2px solid #444;
+            border-radius: 8px;
+        }
+
+        #game-stage {
+            width: 1200px;
+            height: 1000px;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+        }
+
+        .controls {
+            margin-bottom: 15px;
+            display: flex;
+            gap: 10px;
+        }
+
+        button {
+            padding: 8px 16px;
+            cursor: pointer;
+            border: none;
+            border-radius: 4px;
+            background: #4a6fa5;
+            color: white;
+        }
+        button:hover { background: #5a8fd5; }
+
+        .info {
+            margin-top: 10px;
+            font-size: 14px;
+            color: #888;
+        }
+    </style>
+</head>
+<body>
+    <h3>Scroll Container Demo</h3>
+    
+    <div class="controls">
+        <button onclick="addCards(10)">+10 Cards</button>
+        <button onclick="addCards(50)">+50 Cards</button>
+        <button onclick="clearAll()">Clear</button>
+    </div>
+
+    <div id="scroll-container">
+        <div id="game-stage"></div>
+    </div>
+
+    <div class="info">
+        Cards: <span id="count">0</span> | 
+        Stage: 1200×1000px | 
+        Viewport: 600×400px
+    </div>
+
+    <script type="module">
+        import Stage from './card-engine.js';
+
+        const stage = new Stage(document.getElementById('game-stage'), {
+            cardWidth: 60,
+            cardHeight: 84,
+            renderCard: (el, type) => {
+                el.textContent = type;
+                el.style.fontSize = '12px';
+            }
+        });
+
+        const gridZone = stage.createZone(
+            document.getElementById('game-stage'),
+            'grid',
+            { cols: 15, gap: [10, 10] }
+        );
+
+        window.addCards = (n) => {
+            for (let i = 0; i < n; i++) {
+                const idx = gridZone.items.length;
+                const token = stage.spawn(`#${idx + 1}`, null);
+                token.jumpTo(0, 0); // Initial position, will be arranged by grid
+                gridZone.add(token);
+            }
+            document.getElementById('count').textContent = gridZone.items.length;
+        };
+
+        window.clearAll = () => {
+            const tokens = gridZone.clear();
+            tokens.forEach(t => stage.despawn(t));
+            document.getElementById('count').textContent = 0;
+        };
+
+        addCards(20);
+    </script>
+</body>
+</html>
